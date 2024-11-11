@@ -20,7 +20,7 @@ using json = nlohmann::json;
   Runs at most `TRIAL_MAX` times or until the total time exceeds `TIME_MAX`.
 */
 template <typename Setup, typename Run>
-long long benchmark(Setup setup, Run run){
+std::pair<long long, int> benchmark(Setup setup, Run run){
   auto time_total = std::chrono::high_resolution_clock::duration(0);
   auto time_min = std::chrono::high_resolution_clock::duration(0);
   int trial = 0;
@@ -42,7 +42,7 @@ long long benchmark(Setup setup, Run run){
       break;
     }
   }
-  return (long long) time_min.count();
+  return std::make_pair((long long) time_min.count(), trial);
 }
 
 template <typename T>
@@ -65,6 +65,7 @@ void experiment(std::string input, std::string output, int verbose);
 struct benchmark_params_t {
   std::string input;
   std::string output;
+  int max_threads;
   bool verbose;
   int argc;
   char **argv;
@@ -76,6 +77,7 @@ benchmark_params_t parse(int argc, char **argv) {
     {"help", no_argument, 0, 'h'},
     {"input", required_argument, 0, 'i'},
     {"output", required_argument, 0, 'o'},
+    {"max_threads", required_argument, 0, 't'},
     {"verbose", no_argument, 0, 'v'},
     {0, 0, 0, 0}
   };
@@ -85,7 +87,7 @@ benchmark_params_t parse(int argc, char **argv) {
   int c;
   benchmark_params_t params;
   params.verbose = false;
-  while ((c = getopt_long(argc, argv, "hi:o:v", long_options, &option_index)) != -1) {
+  while ((c = getopt_long(argc, argv, "hi:o:t:v", long_options, &option_index)) != -1) {
     switch (c) {
       case 'h':
         std::cout << "Options:" << std::endl;
@@ -100,6 +102,9 @@ benchmark_params_t parse(int argc, char **argv) {
         break;
       case 'o':
         params.output = optarg;
+        break;
+      case 't':
+        params.max_threads = atoi(optarg);
         break;
       case 'v':
         params.verbose = true;

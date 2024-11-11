@@ -69,7 +69,7 @@ end
 
 femlab_matrices = [
     "FEMLAB/poisson3Da",
-    "FEMLAB/poisson3Db"
+    # "FEMLAB/poisson3Db"
 ]
 
 function spmv_femlab_command(args; kwargs...)
