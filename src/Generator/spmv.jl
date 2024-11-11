@@ -11,7 +11,7 @@ function spmv_suitesparse_command(args; kwargs...)
         -e, --ext <ext>     Output file extensions [default: bspnpy]
         <key>               matrix key
         -h, --help          show this screen
-    """ 
+    """
     parsed_args = docopt(doc, args)
     if parsed_args["<key>"] === nothing
         println(doc)
@@ -24,7 +24,7 @@ function spmv_suitesparse_command(args; kwargs...)
     )
 end
 
-function spmv_suitesparse(key; out = joinpath(@__DIR__, "../data"), ext="bspnpy")
+function spmv_suitesparse(key; out=joinpath(@__DIR__, "../data"), ext="bspnpy")
     A = SparseMatrixCSC(matrixdepot(key))
     m, n = size(A)
     x = rand(n)
@@ -53,7 +53,7 @@ function spmv_RMAT_command(args; kwargs...)
             -p, --p <value>    Density (1 - sparsity) of the generated matrix [default: 0.001]
             -s, --seed <value>    Random seed [default: $(rand(UInt))]
             -h, --help          show this screen
-    """ 
+    """
     parsed_args = docopt(doc, args)
     spmv_RMAT(
         out=parsed_args["--out"],
@@ -67,6 +67,37 @@ function spmv_RMAT_command(args; kwargs...)
     )
 end
 
+femlab_matrices = [
+    "FEMLAB/poisson3Da",
+    "FEMLAB/poisson3Db"
+]
+
+function spmv_femlab_command(args; kwargs...)
+    doc = """Generate spmv problem instances from FEMLAB:
+
+    Usage:
+        generate.jl spmv femlab [options]
+        generate.jl spmv femlab --help
+
+    Options:
+        -o, --out=<path>    Output file path [default: ../data]
+        -e, --ext=<ext>     Output file extensions [default: bspnpy]
+        -h, --help          Show this screen.
+    """
+
+    parsed_args = docopt(doc, args)
+    spmv_femlab(
+        out=parsed_args["--out"],
+        ext=parsed_args["--ext"]
+    )
+end
+
+function spmv_femlab(; out=joinpath(@__DIR__, "../data"), ext="bspnpy")
+    for matrix_key in femlab_matrices
+        spmv_suitesparse(matrix_key; out=joinpath(out, matrix_key), ext=ext)
+    end
+end
+
 vuduc02_matrices = [
     "Simon/raefsky3", "Simon/olafu", "Boeing/bcsstk35", "Simon/venkat01", "Boeing/crystk02",
     "Boeing/crystk03", "Nasa/nasasrb", "Rothberg/3dtube", "Boeing/ct20stif", "Bai/af23560",
@@ -78,6 +109,8 @@ vuduc02_matrices = [
     "HB/jpwh_991", "Gupta/gupta1", "LPnetlib/lp_cre_b", "LPnetlib/lp_cre_d", "LPnetlib/lp_fit2p",
     "Qaplib/lp_nug20"
 ]
+
+
 
 function spmv_vuduc02_command(args; kwargs...)
     doc = """Generate spmv problem instances from the paper:
@@ -98,15 +131,15 @@ function spmv_vuduc02_command(args; kwargs...)
         -h, --help          Show this screen.
     """
     parsed_args = docopt(doc, args)
-    vuduc02(
+    spmv_vuduc02(
         out=parsed_args["--out"],
         ext=parsed_args["--ext"]
     )
 end
 
-function spmv_vuduc02(; out = joinpath(@__DIR__, "../data"), ext="bspnpy")
+function spmv_vuduc02(; out=joinpath(@__DIR__, "../data"), ext="bspnpy")
     for matrix_key in vuduc02_matrices
-        spmv_suitesparse(matrix_key; out = joinpath(out, matrix_key), ext=ext)
+        spmv_suitesparse(matrix_key; out=joinpath(out, matrix_key), ext=ext)
     end
 end
 
@@ -139,14 +172,14 @@ function spmv_langr_command(args; kwargs...)
     )
 end
 
-function spmv_langr(; out = joinpath(@__DIR__, "../data"), ext="bspnpy")
+function spmv_langr(; out=joinpath(@__DIR__, "../data"), ext="bspnpy")
     for matrix_key in langr_matrices
-        spmv_suitesparse(matrix_key; out = joinpath(out, matrix_key), ext=ext)
+        spmv_suitesparse(matrix_key; out=joinpath(out, matrix_key), ext=ext)
     end
 end
 
-function spmv_RMAT(;out = joinpath(@__DIR__, "../data"), ext="bspnpy", A_factor=0.57, B_factor=0.19, C_factor=0.19, N=10, p=0.001, seed=rand(UInt))
-    D_factor = 1-(A_factor+B_factor+C_factor)
+function spmv_RMAT(; out=joinpath(@__DIR__, "../data"), ext="bspnpy", A_factor=0.57, B_factor=0.19, C_factor=0.19, N=10, p=0.001, seed=rand(UInt))
+    D_factor = 1 - (A_factor + B_factor + C_factor)
     seed = [A_factor B_factor; C_factor D_factor]
     A = sparse(stockronrand(Float64, Iterators.repeated(seed, N), p)...)
     m, n = size(A)
@@ -162,7 +195,8 @@ spmv_commands = Dict(
     "suitesparse" => spmv_suitesparse_command,
     "RMAT" => spmv_RMAT_command,
     "vuduc02" => spmv_vuduc02_command,
-    "langr" => spmv_langr_command
+    "langr" => spmv_langr_command,
+    "femlab" => spmv_femlab_command
 )
 function spmv_command(args)
     doc = """Generate spmv problem instances.
@@ -183,7 +217,7 @@ function spmv_command(args)
 
     Options:
         -h --help     Show this screen.
-    """ 
+    """
     if length(args) >= 2 && haskey(spmv_commands, args[2])
         return spmv_commands[args[2]](args)
     elseif length(args) == 2 && args[2] == "--help"
