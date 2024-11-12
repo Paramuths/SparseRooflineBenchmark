@@ -1,119 +1,82 @@
 import json
-from collections import defaultdict
+import os
 
 import matplotlib.pyplot as plt
 
-GRAPH_FOLDER = "graph"
-SPEEDUP_FOLDER = "speedup"
-RUNTIME_FOLDER = "runtime"
-RESULTS_FOLDER = "results"
-
-NTHREADS = [i + 1 for i in range(12)]
-
-DEFAULT_METHOD = "serial_default_implementation"
-METHODS = [
-    DEFAULT_METHOD,
-    "intrinsics_atomic_add",
-    "atomix_atomic_add",
-    "separated_memory_add_static",
-    "separated_memory_add_dynamic",
-    "separate_sparselist_separated_memory_add_static",
-]
-
-DATASETS = [
-    {"uniform": ["1000-0.1", "10000-0.1", "1000000-3000000"]},
-    {"FEMLAB": ["FEMLAB-poisson3Da", "FEMLAB-poisson3Db"]},
-]
-
-COLORS = ["gray", "cadetblue", "saddlebrown", "navy", "black", "orange"]
+MEASUREMENTS_JSON = "measurements.json"
+RESULT_DIRECTORY = "result"
+GRAPH_DIRECTORY = "graph"
+RUNTIME_DIRECTORY = "runtime"
+SPEEDUP_DIRECTORY = "speedup"
 
 
-def load_json():
-    combine_results = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {})))
-    for n_thread in NTHREADS:
-        results_json = json.load(
-            open(f"{RESULTS_FOLDER}/spmv_{n_thread}_threads.json", "r")
-        )
-        for result in results_json:
+def find_measurements(result_directory):
+    found_files = []
 
-            matrix = (
-                result["matrix"].replace("/", "-")
-                if result["dataset"] != "uniform"
-                else f"{result['matrix']['size']}-{result['matrix']['sparsity']}"
-            )
-            combine_results[result["dataset"]][matrix][result["method"]][
-                result["n_threads"]
-            ] = result["time"]
+    for root, _, files in os.walk(result_directory):
+        if MEASUREMENTS_JSON in files:
+            found_files.append(os.path.join(root, MEASUREMENTS_JSON))
 
-    return combine_results
+    return found_files
 
 
-def plot_speedup_result(results, dataset, matrix, save_location):
+def plot_runtime(result, dataset):
     plt.figure(figsize=(10, 6))
-    for method, color in zip(METHODS, COLORS):
-        plt.plot(
-            NTHREADS,
-            [
-                results[dataset][matrix][DEFAULT_METHOD][n_thread]
-                / results[dataset][matrix][method][n_thread]
-                for n_thread in NTHREADS
-            ],
-            label=method,
-            color=color,
-            marker="o",
-            linestyle="-",
-            linewidth=1,
+    plt.plot(
+        range(1, len(result) + 1),
+        [result[str(thread)] for thread in range(1, len(result) + 1)],
+        marker="o",
+        linestyle="-",
+        linewidth=1,
+    )
+
+    plt.title(f"SpMV - CPP Atomic Add Runtime for {dataset}")
+    plt.xlabel("Number of Threads")
+    plt.ylabel(f"Runtime (in nanoseconds)")
+
+    plt.savefig(
+        os.path.join(
+            GRAPH_DIRECTORY, RUNTIME_DIRECTORY, f"{dataset.replace('/', '-')}.png"
         )
+    )
+
+
+def plot_speedup(result, dataset):
+    plt.figure(figsize=(10, 6))
+    plt.plot(
+        range(1, len(result) + 1),
+        [result["1"] / result[str(thread)] for thread in range(1, len(result) + 1)],
+        marker="o",
+        linestyle="-",
+        linewidth=1,
+    )
 
     plt.title(
-        f"SpMV - Speedup for {dataset}: {matrix} (with respect to {DEFAULT_METHOD})"
+        f"SpMV - CPP Atomic Add Speedup for {dataset} (with respect to one thread)"
     )
-    # plt.yscale("log", base=10)
-    plt.xticks(NTHREADS)
     plt.xlabel("Number of Threads")
     plt.ylabel(f"Speedup")
 
-    plt.legend()
-    plt.savefig(save_location)
-
-
-def plot_runtime_result(results, dataset, matrix, save_location):
-    plt.figure(figsize=(10, 6))
-    for method, color in zip(METHODS, COLORS):
-        plt.plot(
-            NTHREADS,
-            [results[dataset][matrix][method][n_thread] for n_thread in NTHREADS],
-            label=method,
-            color=color,
-            marker="o",
-            linestyle="-",
-            linewidth=1,
+    plt.savefig(
+        os.path.join(
+            GRAPH_DIRECTORY, SPEEDUP_DIRECTORY, f"{dataset.replace('/', '-')}.png"
         )
+    )
 
-    plt.title(f"SpMV - Runtime for {dataset}: {matrix}")
-    # plt.yscale("log", base=10)
-    plt.xticks(NTHREADS)
-    plt.xlabel("Number of Threads")
-    plt.ylabel(f"Runtime (in seconds)")
 
-    plt.legend()
-    plt.savefig(save_location)
+def plot_result(result, dataset):
+    plot_runtime(result, dataset)
+    plot_speedup(result, dataset)
 
 
 if __name__ == "__main__":
-    results = load_json()
-    for datasets in DATASETS:
-        for dataset, matrices in datasets.items():
-            for matrix in matrices:
-                plot_speedup_result(
-                    results,
-                    dataset,
-                    matrix,
-                    f"{GRAPH_FOLDER}/{SPEEDUP_FOLDER}/{dataset}-{matrix}.png",
-                )
-                plot_runtime_result(
-                    results,
-                    dataset,
-                    matrix,
-                    f"{GRAPH_FOLDER}/{RUNTIME_FOLDER}/{dataset}-{matrix}.png",
-                )
+    measurement_files = find_measurements(RESULT_DIRECTORY)
+
+    for measurement_file in measurement_files:
+        dataset = os.path.join(
+            *os.path.normpath(measurement_file).split(os.path.sep)[1:-1]
+        )
+
+        result = json.load(open(measurement_file, "r"))["time"]
+
+        plot_result(result, dataset)

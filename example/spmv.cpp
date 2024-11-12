@@ -1,10 +1,11 @@
 #include "../src/benchmark.hpp"
-#include <omp.h>
 #include <algorithm>
 #include <cstdint>
 #include <fstream>
 #include <iostream>
+#include <omp.h>
 #include <stdexcept>
+#include <string>
 #include <sys/stat.h>
 #include <vector>
 
@@ -143,36 +144,60 @@ void experiment_spmv_csr(benchmark_params_t params) {
   remove_zeros_from_csr<T, I>(m, A_ptr, A_idx, A_val, B_ptr, B_idx, B_val);
   csr_to_csc<T, I>(m, n, B_ptr, B_idx, B_val, C_ptr, C_idx, C_val);
 
-  // perform an spmv of the matrix in c++
-  std::vector<long long> times;
-  for (int i = 0; i < params.max_threads; i++) {
-    int num_threads = i + 1;
-	omp_set_num_threads(num_threads);
-	std::cout << "Running " << params.input << " with " << num_threads << " threads" << std::endl;
-    auto result = benchmark([]() {},
-                            [&y_val, &C_ptr, &C_val, &C_idx, &x_val, &m, &n]() {
-							#pragma omp parallel for
-                              for (int j = 0; j < n; j++) {
-                                for (int p = C_ptr[j]; p < C_ptr[j + 1]; p++) {
-                                  int i = C_idx[p];
-								  auto temp = C_val[p] * x_val[j];
-								#pragma omp atomic
-                                  y_val[i] += temp;
-                                }
-                              }
-                            });
-	std::cout << "Runtime: " << result.first << std::endl;
-
-    for (int i = 0; i < m; i++) {
-      if ((float)(y_val[i] / (double)result.second) != (float)y_val_target[i]) {
-        std::cout << "Got: " << y_val[i] / (double)result.second
-                  << "; Expected: " << y_val_target[i] << std::endl;
+  // methods
+  auto serial_default_implementation = [&y_val, &C_ptr, &C_val, &C_idx, &x_val,
+                                        &m, &n]() {
+    for (int j = 0; j < n; j++) {
+      for (int p = C_ptr[j]; p < C_ptr[j + 1]; p++) {
+        int i = C_idx[p];
+        auto temp = C_val[p] * x_val[j];
+        y_val[i] += temp;
       }
     }
+  };
 
-	std::fill(y_val.begin(), y_val.end(), 0);
+  auto atomic_add = [&y_val, &C_ptr, &C_val, &C_idx, &x_val, &m, &n]() {
+#pragma omp parallel for
+    for (int j = 0; j < n; j++) {
+      for (int p = C_ptr[j]; p < C_ptr[j + 1]; p++) {
+        int i = C_idx[p];
+        auto temp = C_val[p] * x_val[j];
+#pragma omp atomic
+        y_val[i] += temp;
+      }
+    }
+  };
 
-    times.push_back(result.first);
+  std::vector<std::string> method_name;
+  std::vector<std::function<void()>> method_list;
+  method_name.push_back("serial_default_implementation");
+  method_list.push_back(serial_default_implementation);
+  method_name.push_back("atomic_add");
+  method_list.push_back(atomic_add);
+
+  // times list
+  std::vector<std::vector<long long>> times_list(2, std::vector<long long>());
+
+  for (int i = 0; i < params.max_threads; i++) {
+    int num_threads = i + 1;
+    omp_set_num_threads(num_threads);
+    std::cout << "Running " << params.input << " with " << num_threads
+              << " threads" << std::endl;
+    for (int method_idx = 0; method_idx < method_name.size(); method_idx++) {
+      std::fill(y_val.begin(), y_val.end(), 0);
+      auto result = benchmark([]() {}, method_list[i]);
+      std::cout << "Runtime: " << result.first << std::endl;
+
+      for (int i = 0; i < m; i++) {
+        if ((float)(y_val[i] / (double)result.second) !=
+            (float)y_val_target[i]) {
+          std::cout << "Got: " << y_val[i] / (double)result.second
+                    << "; Expected: " << y_val_target[i] << std::endl;
+        }
+      }
+
+      times_list[i].push_back(result.first);
+    }
   }
 
   std::filesystem::create_directories(fs::path(params.output) / "y.bspnpy");
@@ -191,10 +216,11 @@ void experiment_spmv_csr(benchmark_params_t params) {
                       y_val);
 
   json measurements;
-  for (int i = 0; i < params.max_threads; i++) {
-    measurements["time"][std::to_string(i + 1)] = times[i];
+  for (int i = 0; i < method_list.size(); i++) {
+    for (int j = 0; j < params.max_threads; j++) {
+      measurements[method_name[i]][std::to_string(j + 1)] = times_list[i][j];
+    }
   }
-  measurements["memory"] = 0;
   std::ofstream measurements_file(fs::path(params.output) /
                                   "measurements.json");
   measurements_file << measurements;
