@@ -1,6 +1,6 @@
 CC = gcc
 LD = ld
-CXXFLAGS += -std=c++20
+CXXFLAGS += -std=c++20 -fopenmp
 LDLIBS +=
 
 all: spmv

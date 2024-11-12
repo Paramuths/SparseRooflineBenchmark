@@ -1,4 +1,6 @@
 #include "../src/benchmark.hpp"
+#include <omp.h>
+#include <algorithm>
 #include <cstdint>
 #include <fstream>
 #include <iostream>
@@ -145,22 +147,30 @@ void experiment_spmv_csr(benchmark_params_t params) {
   std::vector<long long> times;
   for (int i = 0; i < params.max_threads; i++) {
     int num_threads = i + 1;
+	omp_set_num_threads(num_threads);
+	std::cout << "Running with " << num_threads << " threads" << std::endl;
     auto result = benchmark([]() {},
                             [&y_val, &C_ptr, &C_val, &C_idx, &x_val, &m, &n]() {
+							#pragma omp parallel for
                               for (int j = 0; j < n; j++) {
                                 for (int p = C_ptr[j]; p < C_ptr[j + 1]; p++) {
                                   int i = C_idx[p];
-                                  y_val[i] += C_val[p] * x_val[j];
+								  auto temp = C_val[p] * x_val[j];
+								#pragma omp atomic
+                                  y_val[i] += temp;
                                 }
                               }
                             });
+	std::cout << "Runtime: " << result.first << std::endl;
 
-    /*for (int i = 0; i < m; i++) {*/
-    /*  if ((float)(y_val[i] / (double)result.second) != (float)y_val_target[i]) {*/
-    /*    std::cout << "Got: " << y_val[i] / (double)result.second*/
-    /*              << "; Expected: " << y_val_target[i] << std::endl;*/
-    /*  }*/
-    /*}*/
+    for (int i = 0; i < m; i++) {
+      if ((float)(y_val[i] / (double)result.second) != (float)y_val_target[i]) {
+        std::cout << "Got: " << y_val[i] / (double)result.second
+                  << "; Expected: " << y_val_target[i] << std::endl;
+      }
+    }
+
+	std::fill(y_val.begin(), y_val.end(), 0);
 
     times.push_back(result.first);
   }
