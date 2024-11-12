@@ -7,7 +7,10 @@
 #SBATCH --partition=lanka-v3
 #SBATCH --qos=commit-main
 #SBATCH --mem 102400
+
 cd /data/scratch/paramuth/SparseRooflineBenchmark/src
 julia Generator/generator.jl spmv femlab
 julia Generator/generator.jl spmv RMAT -N 10 -p 0.1
+julia Generator/generator.jl spmv RMAT -N 13 -p 0.1
+julia Generator/generator.jl spmv RMAT2 -N 20 -p 3000000
 

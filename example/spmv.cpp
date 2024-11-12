@@ -44,40 +44,40 @@ int main(int argc, char **argv) {
   return 0;
 }
 
-template <typename T, typename I>
-void remove_zeros_from_csr(int m, const std::vector<I> &A_ptr,
-                           const std::vector<I> &A_idx,
-                           const std::vector<T> &A_val,
-                           std::vector<I> &new_A_ptr, std::vector<I> &new_A_idx,
-                           std::vector<T> &new_A_val) {
-  new_A_ptr.resize(m + 1, 0);
-  for (int i = 0; i < m; i++) {
-    for (int p = A_ptr[i]; p < A_ptr[i + 1]; p++) {
-      if (A_val[p] != 0) {
-        new_A_ptr[i + 1]++;
-      }
-    }
-  }
-
-  for (int i = 0; i < m; i++) {
-    new_A_ptr[i + 1] += new_A_ptr[i];
-  }
-
-  int new_nnz = new_A_ptr[m];
-  new_A_idx.resize(new_nnz);
-  new_A_val.resize(new_nnz);
-
-  int pos = 0;
-  for (int i = 0; i < m; i++) {
-    for (int p = A_ptr[i]; p < A_ptr[i + 1]; p++) {
-      if (A_val[p] != 0) {
-        new_A_idx[pos] = A_idx[p];
-        new_A_val[pos] = A_val[p];
-        pos++;
-      }
-    }
-  }
-}
+/*template <typename T, typename I>*/
+/*void remove_zeros_from_csr(int m, const std::vector<I> &A_ptr,*/
+/*                           const std::vector<I> &A_idx,*/
+/*                           const std::vector<T> &A_val,*/
+/*                           std::vector<I> &new_A_ptr, std::vector<I> &new_A_idx,*/
+/*                           std::vector<T> &new_A_val) {*/
+/*  new_A_ptr.resize(m + 1, 0);*/
+/*  for (int i = 0; i < m; i++) {*/
+/*    for (int p = A_ptr[i]; p < A_ptr[i + 1]; p++) {*/
+/*      if (A_val[p] != 0) {*/
+/*        new_A_ptr[i + 1]++;*/
+/*      }*/
+/*    }*/
+/*  }*/
+/**/
+/*  for (int i = 0; i < m; i++) {*/
+/*    new_A_ptr[i + 1] += new_A_ptr[i];*/
+/*  }*/
+/**/
+/*  int new_nnz = new_A_ptr[m];*/
+/*  new_A_idx.resize(new_nnz);*/
+/*  new_A_val.resize(new_nnz);*/
+/**/
+/*  int pos = 0;*/
+/*  for (int i = 0; i < m; i++) {*/
+/*    for (int p = A_ptr[i]; p < A_ptr[i + 1]; p++) {*/
+/*      if (A_val[p] != 0) {*/
+/*        new_A_idx[pos] = A_idx[p];*/
+/*        new_A_val[pos] = A_val[p];*/
+/*        pos++;*/
+/*      }*/
+/*    }*/
+/*  }*/
+/*}*/
 
 template <typename T, typename I>
 void csr_to_csc(int m, int n, const std::vector<I> &A_ptr,
@@ -139,29 +139,28 @@ void experiment_spmv_csr(benchmark_params_t params) {
   auto y_val_target = npy_load_vector<T>(fs::path(params.input) /
                                          "y_ref.bspnpy" / "values.npy");
 
-  std::vector<I> B_ptr, B_idx, C_ptr, C_idx;
-  std::vector<T> B_val, C_val;
-  remove_zeros_from_csr<T, I>(m, A_ptr, A_idx, A_val, B_ptr, B_idx, B_val);
-  csr_to_csc<T, I>(m, n, B_ptr, B_idx, B_val, C_ptr, C_idx, C_val);
+  std::vector<I> B_ptr, B_idx;
+  std::vector<T> B_val;
+  csr_to_csc<T, I>(m, n, A_ptr, A_idx, A_val, B_ptr, B_idx, B_val);
 
   // methods
-  auto serial_default_implementation = [&y_val, &C_ptr, &C_val, &C_idx, &x_val,
+  auto serial_default_implementation = [&y_val, &B_ptr, &B_val, &B_idx, &x_val,
                                         &m, &n]() {
     for (int j = 0; j < n; j++) {
-      for (int p = C_ptr[j]; p < C_ptr[j + 1]; p++) {
-        int i = C_idx[p];
-        auto temp = C_val[p] * x_val[j];
+      for (int p = B_ptr[j]; p < B_ptr[j + 1]; p++) {
+        int i = B_idx[p];
+        auto temp = B_val[p] * x_val[j];
         y_val[i] += temp;
       }
     }
   };
 
-  auto atomic_add = [&y_val, &C_ptr, &C_val, &C_idx, &x_val, &m, &n]() {
+  auto atomic_add = [&y_val, &B_ptr, &B_val, &B_idx, &x_val, &m, &n]() {
 #pragma omp parallel for
     for (int j = 0; j < n; j++) {
-      for (int p = C_ptr[j]; p < C_ptr[j + 1]; p++) {
-        int i = C_idx[p];
-        auto temp = C_val[p] * x_val[j];
+      for (int p = B_ptr[j]; p < B_ptr[j + 1]; p++) {
+        int i = B_idx[p];
+        auto temp = B_val[p] * x_val[j];
 #pragma omp atomic
         y_val[i] += temp;
       }

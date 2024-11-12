@@ -31,7 +31,7 @@ function spmv_suitesparse(key; out=joinpath(@__DIR__, "../data"), ext="bspnpy")
     y = A * x
     mkpath(out)
     Finch.fwrite(joinpath(out, "y_ref.$ext"), copyto!(Tensor(Dense(Element(0.0))), y))
-    Finch.fwrite(joinpath(out, "A.$ext"), copyto!(swizzle(Tensor(Dense(SparseList(Element(0.0)))), 2, 1), A))
+    Finch.fwrite(joinpath(out, "A.$ext"), swizzle(copyto!(Tensor(Dense(SparseList(Element(0.0)))), permutedims(A)), 2, 1))
     Finch.fwrite(joinpath(out, "x.$ext"), copyto!(Tensor(Dense(Element(0.0))), x))
 end
 
@@ -67,9 +67,71 @@ function spmv_RMAT_command(args; kwargs...)
     )
 end
 
+
+function spmv_RMAT(; out=joinpath(@__DIR__, "../data"), ext="bspnpy", A_factor=0.57, B_factor=0.19, C_factor=0.19, N=10, p=0.001, seed=rand(UInt))
+    D_factor = 1 - (A_factor + B_factor + C_factor)
+    seed = [A_factor B_factor; C_factor D_factor]
+    A = sparse(stockronrand(Float64, Iterators.repeated(seed, N), p)...)
+    m, n = size(A)
+    x = rand(n)
+    y = A * x
+    out = joinpath(out, "$(2^N)-$p")
+    mkpath(out)
+    Finch.fwrite(joinpath(out, "y_ref.$ext"), copyto!(Tensor(Dense(Element(0.0))), y))
+    Finch.fwrite(joinpath(out, "A.$ext"), swizzle(copyto!(Tensor(Dense(SparseList(Element(0.0)))), permutedims(A)), 2, 1))
+    Finch.fwrite(joinpath(out, "x.$ext"), copyto!(Tensor(Dense(Element(0.0))), x))
+end
+
+function spmv_RMAT2_command(args; kwargs...)
+    doc = """Generate spmv problem instances from RMAT2.
+        y[i] += A[i, j] * x[j]
+
+        Usage:
+            generate.jl spmv RMAT [options]
+            generate.jl spmv RMAT --help
+
+        Options:
+            -o, --out <path>    Destination directory for the generated problem instances [default: ../data]
+            -e, --ext <extension>    Generated tensor file format extension [default: bspnpy]
+            -A, --A_factor <value>    Factor A in seed matrix [default: 0.57]
+            -B, --B_factor <value>    Factor B in seed matrix [default: 0.19]
+            -C, --C_factor <value>    Factor C in seed matrix [default: 0.19]
+            -N, --N <value>    Use 2^N as the matrix size [default: 10]
+            -p, --p <value>    Number of nonzeros in a matrix [default: 1]
+            -s, --seed <value>    Random seed [default: $(rand(UInt))]
+            -h, --help          show this screen
+    """
+    parsed_args = docopt(doc, args)
+    spmv_RMAT2(
+        out=parsed_args["--out"],
+        ext=parsed_args["--ext"],
+        A_factor=parse(Float64, parsed_args["--A_factor"]),
+        B_factor=parse(Float64, parsed_args["--B_factor"]),
+        C_factor=parse(Float64, parsed_args["--C_factor"]),
+        N=parse(Int, parsed_args["--N"]),
+        p=parse(Int, parsed_args["--p"]),
+        seed=parse(UInt, parsed_args["--seed"])
+    )
+end
+
+
+function spmv_RMAT2(; out=joinpath(@__DIR__, "../data"), ext="bspnpy", A_factor=0.57, B_factor=0.19, C_factor=0.19, N=10, p=1, seed=rand(UInt))
+    D_factor = 1 - (A_factor + B_factor + C_factor)
+    seed = [A_factor B_factor; C_factor D_factor]
+    A = sparse(stockronrand(Float64, Iterators.repeated(seed, N), p)...)
+    m, n = size(A)
+    x = rand(n)
+    y = A * x
+    out = joinpath(out, "$(2^N)-$p")
+    mkpath(out)
+    Finch.fwrite(joinpath(out, "y_ref.$ext"), copyto!(Tensor(Dense(Element(0.0))), y))
+    Finch.fwrite(joinpath(out, "A.$ext"), swizzle(copyto!(Tensor(Dense(SparseList(Element(0.0)))), permutedims(A)), 2, 1))
+    Finch.fwrite(joinpath(out, "x.$ext"), copyto!(Tensor(Dense(Element(0.0))), x))
+end
+
 femlab_matrices = [
     "FEMLAB/poisson3Da",
-    # "FEMLAB/poisson3Db"
+    "FEMLAB/poisson3Db"
 ]
 
 function spmv_femlab_command(args; kwargs...)
@@ -178,23 +240,11 @@ function spmv_langr(; out=joinpath(@__DIR__, "../data"), ext="bspnpy")
     end
 end
 
-function spmv_RMAT(; out=joinpath(@__DIR__, "../data"), ext="bspnpy", A_factor=0.57, B_factor=0.19, C_factor=0.19, N=10, p=0.001, seed=rand(UInt))
-    D_factor = 1 - (A_factor + B_factor + C_factor)
-    seed = [A_factor B_factor; C_factor D_factor]
-    A = sparse(stockronrand(Float64, Iterators.repeated(seed, N), p)...)
-    m, n = size(A)
-    x = rand(n)
-    y = A * x
-    out = joinpath(out, "$(2^N)-$p")
-    mkpath(out)
-    Finch.fwrite(joinpath(out, "y_ref.$ext"), copyto!(Tensor(Dense(Element(0.0))), y))
-    Finch.fwrite(joinpath(out, "A.$ext"), copyto!(swizzle(Tensor(Dense(SparseList(Element(0.0)))), 2, 1), A))
-    Finch.fwrite(joinpath(out, "x.$ext"), copyto!(Tensor(Dense(Element(0.0))), x))
-end
 
 spmv_commands = Dict(
     "suitesparse" => spmv_suitesparse_command,
     "RMAT" => spmv_RMAT_command,
+    "RMAT2" => spmv_RMAT2_command,
     "vuduc02" => spmv_vuduc02_command,
     "langr" => spmv_langr_command,
     "femlab" => spmv_femlab_command
