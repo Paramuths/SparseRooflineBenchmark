@@ -3,11 +3,15 @@ import os
 
 import matplotlib.pyplot as plt
 
+DEFAULT_METHOD = "serial_default_implementation"
+
 MEASUREMENTS_JSON = "measurements.json"
 RESULT_DIRECTORY = "result"
 GRAPH_DIRECTORY = "graph"
 RUNTIME_DIRECTORY = "runtime"
 SPEEDUP_DIRECTORY = "speedup"
+
+COLORS = ["brown", "black"]
 
 
 def find_measurements(result_directory):
@@ -22,15 +26,19 @@ def find_measurements(result_directory):
 
 def plot_runtime(result, dataset):
     plt.figure(figsize=(10, 6))
-    plt.plot(
-        range(1, len(result) + 1),
-        [result[str(thread)] for thread in range(1, len(result) + 1)],
-        marker="o",
-        linestyle="-",
-        linewidth=1,
-    )
+    for (method, method_result), color in zip(result.items(), COLORS):
+        plt.plot(
+            range(1, len(method_result) + 1),
+            [method_result[str(thread)] for thread in range(1, len(method_result) + 1)],
+            label=method,
+            color=color,
+            marker="o",
+            linestyle="-",
+            linewidth=1,
+        )
 
-    plt.title(f"SpMV - CPP Atomic Add Runtime for {dataset}")
+    plt.title(f"SpMV - CPP Runtime for {dataset}")
+    plt.legend()
     plt.xlabel("Number of Threads")
     plt.ylabel(f"Runtime (in nanoseconds)")
 
@@ -43,17 +51,22 @@ def plot_runtime(result, dataset):
 
 def plot_speedup(result, dataset):
     plt.figure(figsize=(10, 6))
-    plt.plot(
-        range(1, len(result) + 1),
-        [result["1"] / result[str(thread)] for thread in range(1, len(result) + 1)],
-        marker="o",
-        linestyle="-",
-        linewidth=1,
-    )
+    for (method, method_result), color in zip(result.items(), COLORS):
+        plt.plot(
+            range(1, len(method_result) + 1),
+            [
+                result[DEFAULT_METHOD][str(thread)] / method_result[str(thread)]
+                for thread in range(1, len(method_result) + 1)
+            ],
+            label=method,
+            color=color,
+            marker="o",
+            linestyle="-",
+            linewidth=1,
+        )
 
-    plt.title(
-        f"SpMV - CPP Atomic Add Speedup for {dataset} (with respect to one thread)"
-    )
+    plt.title(f"SpMV - CPP Speedup for {dataset} (with respect to {DEFAULT_METHOD})")
+    plt.legend()
     plt.xlabel("Number of Threads")
     plt.ylabel(f"Speedup")
 
@@ -77,6 +90,6 @@ if __name__ == "__main__":
             *os.path.normpath(measurement_file).split(os.path.sep)[1:-1]
         )
 
-        result = json.load(open(measurement_file, "r"))["time"]
+        result = json.load(open(measurement_file, "r"))
 
         plot_result(result, dataset)
