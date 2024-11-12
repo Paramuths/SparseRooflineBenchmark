@@ -148,7 +148,7 @@ void experiment_spmv_csr(benchmark_params_t params) {
   for (int i = 0; i < params.max_threads; i++) {
     int num_threads = i + 1;
 	omp_set_num_threads(num_threads);
-	std::cout << "Running with " << num_threads << " threads" << std::endl;
+	std::cout << "Running " << params.input << " with " << num_threads << " threads" << std::endl;
     auto result = benchmark([]() {},
                             [&y_val, &C_ptr, &C_val, &C_idx, &x_val, &m, &n]() {
 							#pragma omp parallel for
@@ -175,7 +175,7 @@ void experiment_spmv_csr(benchmark_params_t params) {
     times.push_back(result.first);
   }
 
-  std::filesystem::create_directory(fs::path(params.output) / "y.bspnpy");
+  std::filesystem::create_directories(fs::path(params.output) / "y.bspnpy");
   json y_desc;
   y_desc["version"] = 0.5;
   y_desc["format"] = "DVEC";
