@@ -185,6 +185,7 @@ function spmv_RMAT(; out=joinpath(@__DIR__, "../data"), ext="bspnpy", A_factor=0
     m, n = size(A)
     x = rand(n)
     y = A * x
+    out = joinpath(out, "$(2^N)-$p")
     mkpath(out)
     Finch.fwrite(joinpath(out, "y_ref.$ext"), copyto!(Tensor(Dense(Element(0.0))), y))
     Finch.fwrite(joinpath(out, "A.$ext"), copyto!(swizzle(Tensor(Dense(SparseList(Element(0.0)))), 2, 1), A))
