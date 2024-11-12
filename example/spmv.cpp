@@ -178,15 +178,14 @@ void experiment_spmv_csr(benchmark_params_t params) {
   // times list
   std::vector<std::vector<long long>> times_list(2, std::vector<long long>());
 
-  for (int i = 0; i < params.max_threads; i++) {
-    int num_threads = i + 1;
-    omp_set_num_threads(num_threads);
-    std::cout << "Running " << params.input << " with " << num_threads
+  for (int n_threads = 0; n_threads < params.max_threads; n_threads++) {
+    omp_set_num_threads(n_threads + 1);
+    std::cout << "Running " << params.input << " with " << n_threads + 1
               << " threads" << std::endl;
     for (int method_idx = 0; method_idx < method_name.size(); method_idx++) {
       std::fill(y_val.begin(), y_val.end(), 0);
-      auto result = benchmark([]() {}, method_list[i]);
-      std::cout << "Runtime: " << result.first << std::endl;
+      auto result = benchmark([]() {}, method_list[method_idx]);
+      std::cout << "Runtime for " << method_name[method_idx] << ": " << result.first << std::endl;
 
       for (int i = 0; i < m; i++) {
         if ((float)(y_val[i] / (double)result.second) !=
@@ -196,7 +195,7 @@ void experiment_spmv_csr(benchmark_params_t params) {
         }
       }
 
-      times_list[i].push_back(result.first);
+      times_list[method_idx].push_back(result.first);
     }
   }
 
